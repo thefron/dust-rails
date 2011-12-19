@@ -18,13 +18,17 @@ Update your bundle:
 
 Place individual Dust template file in their own file with `.js.dust` extension:
 
-	<!-- app/assets/javascripts/dusts/demo.js.dust -->
+```javascript
+	// app/assets/javascripts/dusts/demo.js.dust
 	Hello {name}! You have {count} new messages.
+```
 
 In your javascript files, require `dust-core` and your own template files.
 
-	<!-- app/assets/javascripts/application.js -->
+```javascript
+	// app/assets/javascripts/application.js
 	require dust-core
 	require_tree ./dusts
+```
 
 All done. Your template files will be compiled and registered.
