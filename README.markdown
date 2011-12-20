@@ -27,7 +27,7 @@ Place individual Dust template file in their own file with `template_name.js.dus
 Which will be compiled and rendered as:
 
 ```javascript
-	(function(){dust.register("post",body_0);function body_0(chk,ctx){return chk.write("Hello ").reference(ctx.get("name"),ctx,"h").write("! You have ").reference(ctx.get("count"),ctx,"h").write(" new messages.");}return body_0;})();
+	(function(){dust.register("demo",body_0);function body_0(chk,ctx){return chk.write("Hello ").reference(ctx.get("name"),ctx,"h").write("! You have ").reference(ctx.get("count"),ctx,"h").write(" new messages.");}return body_0;})();
 ```
 
 
