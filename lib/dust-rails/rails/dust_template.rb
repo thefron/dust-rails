@@ -1,4 +1,5 @@
 require 'tilt'
+require 'execjs'
 
 module Dust
   module Rails
