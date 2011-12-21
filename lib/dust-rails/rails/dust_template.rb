@@ -30,7 +30,7 @@ module Dust
 
       def evaluate(scope, locals, &block)
         <<-TMPL
-        #{Source.context.call("dust.compile", data, basename('.js.dust'))}
+        #{Source.context.call("dust.compile", data, name)}
         TMPL
       end
     end
