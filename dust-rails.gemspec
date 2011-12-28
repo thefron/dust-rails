@@ -13,7 +13,7 @@ Gem::Specification.new do |s|
 
   s.rubyforge_project = "dust-rails"
 
-  s.add_dependency('rails', '~> 3.1.0')
+  s.add_dependency('rails', '> 3.1.0')
   s.add_dependency('tilt')
   s.add_dependency('execjs')
 
