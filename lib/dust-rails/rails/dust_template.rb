@@ -29,9 +29,9 @@ module Dust
       end
 
       def evaluate(scope, locals, &block)
-        <<-TMPL
-        #{Source.context.call("dust.compile", data, name)}
-        TMPL
+        template_root = Dust.config.template_root
+        template_name = file.split(template_root).last.split('.',2).first
+        Source.context.call("dust.compile", data, template_name)
       end
     end
   end

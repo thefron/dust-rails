@@ -16,10 +16,10 @@ Update your bundle:
 
 ## Usage
 
-Place individual Dust template file in their own file with `template_name.js.dust` extension:
+Place individual Dust template file in their own file with `template_name.js.dust` extension.
 
 ```javascript
-	/* app/assets/javascripts/dusts/demo.js.dust */
+	/* app/assets/javascripts/templates/demo.js.dust */
 	
 	Hello {name}! You have {count} new messages.
 ```
@@ -31,14 +31,31 @@ Which will be compiled and rendered as:
 ```
 
 
+Dust-rails resolves the name of the template out of relative path of each template file.
+Relative path starts from `app/assets/javascripts/templates/` by default.
+
+	app/assets/javascripts/templates/demo1.js.dust -> demo1
+	app/assets/javascripts/templates/demos/demo2.js.dust -> demos/demo2
+
+If you want to change the default root path of template files, add following configuration into application.rb:
+
+```ruby
+    # config/application.rb
+    module YourApp
+        class Application < Rails::Application
+            config.dust.template_root = 'app/assets/your_path_to_templates/'
+        end
+    end
+```
+
 In your javascript files, require `dust-core` and your own template files.
-I recommend you put all the template files under `assets/javascripts/dusts` and require using `require_tree` for easy use.
+Using `require_tree` is recommended if you want to require all the template files at once.
 
 ```javascript
 	/* app/assets/javascripts/application.js */
 	
 	//= require dust-core
-	//= require_tree ./dusts
+	//= require_tree ./templates
 	...
 	dust.render("demo", {name: "Fred", count: 10}, function(err, out) {
  		console.log(out);
