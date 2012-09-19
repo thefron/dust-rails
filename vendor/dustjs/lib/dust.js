@@ -8,12 +8,6 @@
 
 var dust = {};
 
-function getGlobal(){	
-  return (function(){	
-    return this.dust;	
-      }).call(null);
-}
-
 (function(dust) {
 
 dust.cache = {};
@@ -764,7 +758,7 @@ var helpers = {
 
 dust.helpers = helpers;
 
-})(typeof exports !== 'undefined' ? exports : getGlobal());
+})(typeof exports !== 'undefined' ? exports : dust);
 (function(dust) {
 
 dust.compile = function(source, name) {
@@ -1099,7 +1093,7 @@ var escape = (typeof JSON === "undefined")
   ? function(str) { return "\"" + dust.escapeJs(str) + "\"" }
   : JSON.stringify;
 
-})(typeof exports !== 'undefined' ? exports : getGlobal());
+})(typeof exports !== 'undefined' ? exports : dust);
 (function(dust){
 
 var parser = (function(){
@@ -3678,4 +3672,4 @@ var parser = (function(){
 
 dust.parse = parser.parse;
 
-})(typeof exports !== 'undefined' ? exports : getGlobal());
+})(typeof exports !== 'undefined' ? exports : dust);

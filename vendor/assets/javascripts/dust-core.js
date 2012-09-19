@@ -1,5 +1,5 @@
 //
-// Dust - Asynchronous Templating v0.3.0
+// Dust - Asynchronous Templating v1.0.0
 // http://akdubya.github.com/dustjs
 //
 // Copyright (c) 2010, Aleksander Williams
@@ -7,6 +7,12 @@
 //
 
 var dust = {};
+
+function getGlobal(){	
+  return (function(){	
+    return this.dust;	
+      }).call(null);
+}
 
 (function(dust) {
 
@@ -75,9 +81,15 @@ if (Array.isArray) {
   };
 }
 
-dust.nextTick = function(callback) {
-  setTimeout(callback, 0);
-}
+dust.nextTick = (function() {
+  if (typeof process !== "undefined") {
+    return process.nextTick;
+  } else {
+    return function(callback) {
+      setTimeout(callback,0);
+    }
+  }
+} )();
 
 dust.isEmpty = function(value) {
   if (dust.isArray(value) && !value.length) return true;
@@ -106,8 +118,10 @@ dust.filters = {
   h: function(value) { return dust.escapeHtml(value); },
   j: function(value) { return dust.escapeJs(value); },
   u: encodeURI,
-  uc: encodeURIComponent
-}
+  uc: encodeURIComponent,
+  js: function(value) { if (!JSON) { return value; } return JSON.stringify(value); },
+  jp: function(value) { if (!JSON) { return value; } return JSON.parse(value); }
+};
 
 function Context(stack, global, blocks) {
   this.stack  = stack;
@@ -117,14 +131,14 @@ function Context(stack, global, blocks) {
 
 dust.makeBase = function(global) {
   return new Context(new Stack(), global);
-}
+};
 
 Context.wrap = function(context) {
   if (context instanceof Context) {
     return context;
   }
   return new Context(new Stack(context));
-}
+};
 
 Context.prototype.get = function(key) {
   var ctx = this.stack, value;
@@ -146,7 +160,6 @@ Context.prototype.getPath = function(cur, down) {
       len = down.length;
 
   if (cur && len === 0) return ctx.head;
-  if (!ctx.isObject) return undefined;
   ctx = ctx.head;
   var i = 0;
   while(ctx && i < len) {
@@ -168,7 +181,12 @@ Context.prototype.current = function() {
   return this.stack.head;
 };
 
-Context.prototype.getBlock = function(key) {
+Context.prototype.getBlock = function(key, chk, ctx) {
+  if (typeof key === "function") {
+    key = key(chk, ctx).data;
+    chk.data = "";
+  }
+
   var blocks = this.blocks;
 
   if (!blocks) return;
@@ -177,7 +195,7 @@ Context.prototype.getBlock = function(key) {
     fn = blocks[len][key];
     if (fn) return fn;
   }
-}
+};
 
 Context.prototype.shiftBlocks = function(locals) {
   var blocks = this.blocks;
@@ -191,7 +209,7 @@ Context.prototype.shiftBlocks = function(locals) {
     return new Context(this.stack, this.global, newBlocks);
   }
   return this;
-}
+};
 
 function Stack(head, tail, idx, len) {
   this.tail = tail;
@@ -224,7 +242,7 @@ Stub.prototype.flush = function() {
     this.head = chunk;
   }
   this.callback(null, this.out);
-}
+};
 
 function Stream() {
   this.head = new Chunk(this);
@@ -247,23 +265,46 @@ Stream.prototype.flush = function() {
     this.head = chunk;
   }
   this.emit('end');
-}
+};
 
 Stream.prototype.emit = function(type, data) {
-  var events = this.events;
-
-  if (events && events[type]) {
-    events[type](data);
+  if (!this.events) return false;
+  var handler = this.events[type];
+  if (!handler) return false;
+  if (typeof handler == 'function') {
+    handler(data);
+  } else {
+    var listeners = handler.slice(0);
+    for (var i = 0, l = listeners.length; i < l; i++) {
+      listeners[i](data);
+    }
   }
-}
+};
 
 Stream.prototype.on = function(type, callback) {
   if (!this.events) {
     this.events = {};
   }
-  this.events[type] = callback;
+  if (!this.events[type]) {
+    this.events[type] = callback;
+  } else if(typeof this.events[type] === 'function') {
+    this.events[type] = [this.events[type], callback];
+  } else {
+    this.events[type].push(callback);
+  }
   return this;
-}
+};
+
+Stream.prototype.pipe = function(stream) {
+  this.on("data", function(data) {
+    stream.write(data, "utf8");
+  }).on("end", function() {
+    stream.end();
+  }).on("error", function(err) {
+    stream.error(err);
+  });
+  return this;
+};
 
 function Chunk(root, next, taps) {
   this.root = root;
@@ -281,7 +322,7 @@ Chunk.prototype.write = function(data) {
   }
   this.data += data;
   return this;
-}
+};
 
 Chunk.prototype.end = function(data) {
   if (data) {
@@ -290,7 +331,7 @@ Chunk.prototype.end = function(data) {
   this.flushable = true;
   this.root.flush();
   return this;
-}
+};
 
 Chunk.prototype.map = function(callback) {
   var cursor = new Chunk(this.root, this.next, this.taps),
@@ -300,7 +341,7 @@ Chunk.prototype.map = function(callback) {
   this.flushable = true;
   callback(branch);
   return cursor;
-}
+};
 
 Chunk.prototype.tap = function(tap) {
   var taps = this.taps;
@@ -311,20 +352,22 @@ Chunk.prototype.tap = function(tap) {
     this.taps = new Tap(tap);
   }
   return this;
-}
+};
 
 Chunk.prototype.untap = function() {
   this.taps = this.taps.tail;
   return this;
-}
+};
 
 Chunk.prototype.render = function(body, context) {
   return body(this, context);
-}
+};
 
 Chunk.prototype.reference = function(elem, context, auto, filters) {
   if (typeof elem === "function") {
-    elem = elem(this, context, null, {auto: auto, filters: filters});
+    elem.isReference = true;
+    // Changed the function calling to use apply with the current context to make sure that "this" is wat we expect it to be inside the function
+    elem = elem.apply(context.current(), [this, context, null, {auto: auto, filters: filters}]);
     if (elem instanceof Chunk) {
       return elem;
     }
@@ -338,7 +381,7 @@ Chunk.prototype.reference = function(elem, context, auto, filters) {
 
 Chunk.prototype.section = function(elem, context, bodies, params) {
   if (typeof elem === "function") {
-    elem = elem(this, context, bodies, params);
+    elem = elem.apply(context.current(), [this, context, bodies, params]);
     if (elem instanceof Chunk) {
       return elem;
     }
@@ -354,15 +397,26 @@ Chunk.prototype.section = function(elem, context, bodies, params) {
   if (dust.isArray(elem)) {
     if (body) {
       var len = elem.length, chunk = this;
+      context.stack.head['$len'] = len;
       for (var i=0; i<len; i++) {
+        context.stack.head['$idx'] = i;
         chunk = body(chunk, context.push(elem[i], i, len));
       }
+      context.stack.head['$idx'] = undefined;
+      context.stack.head['$len'] = undefined;
       return chunk;
     }
   } else if (elem === true) {
     if (body) return body(this, context);
   } else if (elem || elem === 0) {
-    if (body) return body(this, context.push(elem));
+    if (body) {
+      context.stack.head['$idx'] = 0;
+      context.stack.head['$len'] = 1;
+      chunk = body(this, context.push(elem));
+      context.stack.head['$idx'] = undefined;
+      context.stack.head['$len'] = undefined;
+      return chunk;
+    }
   } else if (skip) {
     return skip(this, context);
   }
@@ -379,7 +433,7 @@ Chunk.prototype.exists = function(elem, context, bodies) {
     return skip(this, context);
   }
   return this;
-}
+};
 
 Chunk.prototype.notexists = function(elem, context, bodies) {
   var body = bodies.block,
@@ -391,7 +445,7 @@ Chunk.prototype.notexists = function(elem, context, bodies) {
     return skip(this, context);
   }
   return this;
-}
+};
 
 Chunk.prototype.block = function(elem, context, bodies) {
   var body = bodies.block;
@@ -406,7 +460,17 @@ Chunk.prototype.block = function(elem, context, bodies) {
   return this;
 };
 
-Chunk.prototype.partial = function(elem, context) {
+Chunk.prototype.partial = function(elem, context, params) {
+  var ctx = context.stack, tempHead = ctx.head;
+  if (params){
+    //put the params context second to match what section does. {.} matches the current context without parameters
+    //remove head
+    context = context.rebase(ctx.tail);
+    //put params on
+    context = context.push(params);
+    //reattach the head
+    context = context.push(tempHead);
+  }
   if (typeof elem === "function") {
     return this.capture(elem, context, function(name, chunk) {
       dust.load(name, chunk, context).end();
@@ -438,19 +502,6 @@ Chunk.prototype.setError = function(err) {
   return this;
 };
 
-dust.helpers = {
-  sep: function(chunk, context, bodies) {
-    if (context.stack.index === context.stack.of - 1) {
-      return chunk;
-    }
-    return bodies.block(chunk, context);
-  },
-
-  idx: function(chunk, context, bodies) {
-    return bodies.block(chunk, context.push(context.stack.index));
-  }
-}
-
 function Tap(head, tail) {
   this.head = head;
   this.tail = tail;
@@ -470,18 +521,19 @@ Tap.prototype.go = function(value) {
   return value;
 };
 
-var HCHARS = new RegExp(/[&<>\"]/),
+var HCHARS = new RegExp(/[&<>\"\']/),
     AMP    = /&/g,
     LT     = /</g,
     GT     = />/g,
-    QUOT   = /\"/g;
+    QUOT   = /\"/g,
+    SQUOT  = /\'/g;
 
 dust.escapeHtml = function(s) {
   if (typeof s === "string") {
     if (!HCHARS.test(s)) {
       return s;
     }
-    return s.replace(AMP,'&amp;').replace(LT,'&lt;').replace(GT,'&gt;').replace(QUOT,'&quot;');
+    return s.replace(AMP,'&amp;').replace(LT,'&lt;').replace(GT,'&gt;').replace(QUOT,'&quot;').replace(SQUOT, '&#39;');
   }
   return s;
 };
@@ -515,8 +567,201 @@ dust.escapeJs = function(s) {
 })(dust);
 
 if (typeof exports !== "undefined") {
+  //TODO: Remove the helpers from dust core in the next release.
+  dust.helpers = require("./dust-helpers").helpers;
   if (typeof process !== "undefined") {
       require('./server')(dust);
   }
   module.exports = dust;
 }
+(function(dust){
+
+/* make a safe version of console if it is not available
+ * currently supporting:
+ *   _console.log
+ * */
+var _console = (typeof console !== 'undefined')? console: {
+  log: function(){
+     /* a noop*/
+   }
+};
+
+function isSelect(context) {
+  var value = context.current();
+  return typeof value === "object" && value.isSelect === true;   
+}
+
+function filter(chunk, context, bodies, params, filter) {
+  var params = params || {},
+      actual,
+      expected;
+  if (params.key) {
+    actual = helpers.tap(params.key, chunk, context);
+  } else if (isSelect(context)) {
+    actual = context.current().selectKey;
+    if (context.current().isResolved) {
+      filter = function() { return false; };
+    }
+  } else {
+    throw "No key specified for filter and no key found in context from select statement";
+  }
+  expected = helpers.tap(params.value, chunk, context);
+  if (filter(expected, coerce(actual, params.type, context))) {
+    if (isSelect(context)) {
+      context.current().isResolved = true;
+    }
+    return chunk.render(bodies.block, context);
+  } else if (bodies['else']) {
+    return chunk.render(bodies['else'], context);
+  }
+
+  return chunk.write('');
+}
+
+function coerce (value, type, context) {
+  if (value) {
+    switch (type || typeof(value)) {
+      case 'number': return +value;
+      case 'string': return String(value);
+      case 'boolean': return Boolean(value);
+      case 'date': return new Date(value);
+      case 'context': return context.get(value);
+    }
+  }
+
+  return value;
+}
+
+var helpers = {
+  
+  sep: function(chunk, context, bodies) {
+    if (context.stack.index === context.stack.of - 1) {
+      return chunk;
+    }
+    return bodies.block(chunk, context);
+  },
+
+  idx: function(chunk, context, bodies) {
+    return bodies.block(chunk, context.push(context.stack.index));
+  },
+  
+  contextDump: function(chunk, context, bodies) {
+    _console.log(JSON.stringify(context.stack));
+    return chunk;
+  },
+  
+  // Utility helping to resolve dust references in the given chunk
+  tap: function( input, chunk, context ){
+    // return given input if there is no dust reference to resolve
+    var output = input;
+    // dust compiles a string to function, if there are references
+    if( typeof input === "function"){
+      if( ( typeof input.isReference !== "undefined" ) && ( input.isReference === true ) ){ // just a plain function, not a dust `body` function
+        output = input();
+      } else {
+        output = '';
+        chunk.tap(function(data){
+          output += data;
+          return '';
+        }).render(input, context).untap();
+        if( output === '' ){
+          output = false;
+        }
+      }
+    }
+    return output;
+  },
+
+  /**
+  if helper 
+   @param cond, either a string literal value or a dust reference
+                a string literal value, is enclosed in double quotes, e.g. cond="2>3"
+                a dust reference is also enclosed in double quotes, e.g. cond="'{val}'' > 3"
+    cond argument should evaluate to a valid javascript expression
+   **/
+
+  "if": function( chunk, context, bodies, params ){
+    if( params && params.cond ){
+      var cond = params.cond;
+      cond = this.tap(cond, chunk, context);
+      // eval expressions with given dust references
+      if( eval( cond ) ){
+       return chunk.render( bodies.block, context );
+      }
+      if( bodies['else'] ){
+       return chunk.render( bodies['else'], context );
+      }
+    }
+    // no condition
+    else {
+      _console.log( "No condition given in the if helper!" );
+    }
+    return chunk;
+  },
+  
+   /**
+   select/eq/lt/lte/gt/gte/default helper
+   @param key, either a string literal value or a dust reference
+                a string literal value, is enclosed in double quotes, e.g. key="foo"
+                a dust reference may or may not be enclosed in double quotes, e.g. key="{val}" and key=val are both valid
+   @param type (optiona), supported types are  number, boolean, string, date, context, defaults to string
+   **/
+  select: function(chunk, context, bodies, params) {
+    if( params && params.key){
+      // returns given input as output, if the input is not a dust reference, else does a context lookup
+      var key = this.tap(params.key, chunk, context);
+      return chunk.render(bodies.block, context.push({ isSelect: true, isResolved: false, selectKey: key }));
+    }
+    // no key
+    else {
+      _console.log( "No key given in the select helper!" );
+    }
+    return chunk;
+  },
+
+  eq: function(chunk, context, bodies, params) {
+    return filter(chunk, context, bodies, params, function(expected, actual) { return actual === expected; });
+  },
+
+  lt: function(chunk, context, bodies, params) {
+    return filter(chunk, context, bodies, params, function(expected, actual) { return actual < expected; });
+  },
+
+  lte: function(chunk, context, bodies, params) {
+    return filter(chunk, context, bodies, params, function(expected, actual) { return actual <= expected; });
+  },
+
+  gt: function(chunk, context, bodies, params) {
+    return filter(chunk, context, bodies, params, function(expected, actual) { return actual > expected; });
+  },
+
+  gte: function(chunk, context, bodies, params) {
+    return filter(chunk, context, bodies, params, function(expected, actual) { return actual >= expected; });
+  },
+
+  "default": function(chunk, context, bodies, params) {
+    return filter(chunk, context, bodies, params, function(expected, actual) { return true; });
+  },
+  size: function( chunk, context, bodies, params ) {
+    var subject = params.subject; 
+    var value   = 0;
+    if (!subject) { //undefined, "", 0
+      value = 0;  
+    } else if(dust.isArray(subject)) { //array 
+      value = subject.length;  
+    } else if (!isNaN(subject)) { //numeric values  
+      value = subject;  
+    } else if (Object(subject) === subject) { //object test
+      var nr = 0;  
+      for(var k in subject) if(Object.hasOwnProperty.call(subject,k)) nr++;  
+        value = nr;
+    } else { 
+      value = (subject + '').length; //any other value (strings etc.)  
+    } 
+    return chunk.write(value); 
+  }
+};
+
+dust.helpers = helpers;
+
+})(typeof exports !== 'undefined' ? exports : getGlobal());
