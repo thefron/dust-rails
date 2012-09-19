@@ -1,8 +1,12 @@
+### Now following [LinkedIn managed version](https://github.com/linkedin/dustjs) as original repository is not being updated anymore.
+
 # Dust-Rails
 
 This gem adds the Dust template and a corresponding assets engine to the asset pipeline in Rails => 3.1 applications.
 
 For detailed information about Dust, visit <http://akdubya.github.com/dustjs/>
+
+
 
 ## Installing
 
