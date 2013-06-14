@@ -4,7 +4,7 @@
 
 This gem adds the Dust template and a corresponding assets engine to the asset pipeline in Rails => 3.1 applications.
 
-For detailed information about Dust, visit <http://akdubya.github.com/dustjs/>
+For detailed information about Dust, visit <https://github.com/linkedin/dustjs/>
 
 
 
