@@ -8,6 +8,7 @@ module Dust
       def self.context
         path = File.expand_path('../../../../vendor/dustjs/lib/dust.js', __FILE__)
         contents = File.read(path)
+        puts ">>>>>> #{contents}"
         ExecJS.compile(contents)
       end
 
@@ -16,7 +17,7 @@ module Dust
     class DustTemplate < ::Tilt::Template
 
       def self.default_mime_type
-        'application/javascript'
+        'text/javascript'
       end
 
       def prepare
