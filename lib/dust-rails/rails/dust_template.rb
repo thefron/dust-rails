@@ -6,7 +6,7 @@ module Dust
 
     module Source
       def self.path
-        @path ||= File.expand_path('../../../vendor/dustjs/lib/dust.js', __FILE__)
+        @path ||= File.expand_path('../../../../vendor/dustjs/lib/dust.js', __FILE__)
         puts ">>>>>>>> #{@path}"
         @path
       end
