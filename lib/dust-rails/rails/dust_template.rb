@@ -8,16 +8,19 @@ module Dust
       def self.path
         @path ||= File.expand_path('../../../vendor/dustjs/lib/dust.js', __FILE__)
         puts ">>>>>>>> #{@path}"
+        @path
       end
 
       def self.contents
         @contents ||= File.read(path)
         puts ">>>>>>>> contents: #{@contents}"
+        @contents
       end
 
       def self.context
         @context ||= ExecJS.compile(contents)
         puts ">>>>>>>> ctx: #{@context}"
+        @context
       end
 
     end
