@@ -66,4 +66,7 @@ Using `require_tree` is recommended if you want to require all the template file
 	});
 ```
 
+To include dust-helpers, add require `dust-helpers` after `dust-core` in application.js
+
+
 All done. Your template files will be compiled and registered.
